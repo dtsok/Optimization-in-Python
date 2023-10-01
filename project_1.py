@@ -183,7 +183,8 @@ def zoom(
     c2: float,
 ) -> float:
     while True:
-        a = (low + high) / 2.0  # bisection - interpolation
+        # a = (low + high) / 2.0  # bisection - interpolation
+        a = (low + high) / 3.0 # test commit
         fa = fun(w + a * p)
         f_zero_prime = f_prime(w).dot(p)
         if fa > fun(w) + c1 * a * f_zero_prime or fa >= fun(w + low * p):

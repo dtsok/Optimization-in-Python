@@ -163,7 +163,7 @@ def LineSearch(fun, f_prime, w: np.array, p: np.array, aMax: float) -> float:
         if abs(fa_next_prime) <= -c2 * f_zero_prime:
             return a_next
         elif fa_next_prime >= 0:
-            return zoom(fun, f_prime, w, p, a_next, a, c1, c2, p)
+            return zoom(fun, f_prime, w, p, a_next, a, c1, c2)
         else:
             temp = a_next
             a_next = (a + a_next) / 2.0
@@ -183,8 +183,7 @@ def zoom(
     c2: float,
 ) -> float:
     while True:
-        # a = (low + high) / 2.0  # bisection - interpolation
-        a = (low + high) / 3.0 # test commit
+        a = (low + high) / 2.0  # bisection - interpolation
         fa = fun(w + a * p)
         f_zero_prime = f_prime(w).dot(p)
         if fa > fun(w) + c1 * a * f_zero_prime or fa >= fun(w + low * p):
@@ -197,9 +196,63 @@ def zoom(
                 high = low
             low = a
 
+# check if array is positive definite - if not modify principal diagonal
+def isPositiveDefinite(array: np.array) -> bool:
+    try:
+        np.linalg.cholesky(array)
+        return True
+    except Exception as err:
+        print("false")
+        return False
+
+def checkArray(array: np.array):
+    while(not isPositiveDefinite(array)):
+        for i in range(len(array)):
+            array[i][i] += 0.00001
+
+
+def Newton(hfun, dfun, w) -> np.array:
+    p = hfun(w)
+    checkArray(p)
+    p = np.linalg.inv(p)
+    p = -np.matmul(p, dfun(w))
+    return p
+
+def selectDescentDirection(c: int, hfun, dfun, w) -> np.array:
+    if c == 0:
+        return -dfun(w) # Steepest Descent
+    elif c == 1:
+        return Newton(hfun, dfun, w) # Newton
+    else:
+        pass # BFGS
+
+def LineSearchMethods(dd: int, hfun, dfun, fun):
+    print("~~~~~ Line Search Methods ~~~~~")
+    labels = ["Steepest Descent", "Newton", "BFGS"]
+    print("Descent Direction:",labels[dd],"\n")
+    # initial values for variables
+    alpha = 5
+    iterations = 0
+    q = 1
+    # w = np.random.rand(6)
+    w = np.zeros(6)  # initial state
+    while q > 1e-4 and iterations < 1e4:
+        p = selectDescentDirection(dd, hfun, dfun, w)
+        a = LineSearch(fun, dfun, w, p, alpha)
+        w = w + a * p
+        q = np.linalg.norm(dfun(w))
+        print(q)
+        iterations += 1
+    print("\nBest weight vector:\n"+str(w), "\nMean square error:",q,"\nNumber of iterations:",iterations)
+    if q <= 1e-4:
+        print("Success minimization")
+    else:
+        print("Not optimal solution")
+        
 
 def main(argv: list):
     data = readData()  # data - 180 days total
+    dd = int(argv[2]) # descent direction for line search methods 
     k = 6  # (fixed) number of forecasters
     m = int(argv[1])  # predict best last m days
     N = len(data)
@@ -209,22 +262,9 @@ def main(argv: list):
     # simplify the calls to the objective function
     fun = lambda w: f(w, data, f_predictions, m, N)
     dfun = lambda w: gradf(w, data, f_predictions, m, N)
+    hfun = lambda w: hessianf(w, f_predictions, m , N)
 
-    # initial values for variables
-    alpha = 1
-    iterations = 0
-    q = 1
-    # w = np.random.rand(6)
-    w = np.zeros(6)  # initial state
-    while q > 1e-4 and iterations < 1e4:
-        p = -dfun(w)
-        alpha = LineSearch(fun, dfun, w, p, alpha)
-        w = w + alpha * p
-        q = np.linalg.norm(dfun(w))
-        print(q)
-        iterations += 1
-    print(w)
-
+    LineSearchMethods(dd, hfun, dfun, fun)
 
 if __name__ == "__main__":
     main(sys.argv)

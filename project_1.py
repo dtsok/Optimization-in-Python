@@ -142,6 +142,7 @@ def initializePredictions(data: np.array, f_pred: np.array, k: int, m: int):
         f_pred[5][index] = f6(t)
         index += 1
 
+
 # Line search with Wolfe conditions - search (sub)optimal step size a
 def LineSearch(fun, f_prime, w: np.array, p: np.array, aMax: float) -> float:
     # Wolfe condition constants
@@ -196,6 +197,7 @@ def zoom(
                 high = low
             low = a
 
+
 # check if array is positive definite - if not modify principal diagonal
 def isPositiveDefinite(array: np.array) -> bool:
     try:
@@ -205,8 +207,9 @@ def isPositiveDefinite(array: np.array) -> bool:
         print("false")
         return False
 
+
 def checkArray(array: np.array):
-    while(not isPositiveDefinite(array)):
+    while not isPositiveDefinite(array):
         for i in range(len(array)):
             array[i][i] += 0.00001
 
@@ -218,41 +221,68 @@ def Newton(hfun, dfun, w) -> np.array:
     p = -np.matmul(p, dfun(w))
     return p
 
+
 def selectDescentDirection(c: int, hfun, dfun, w) -> np.array:
     if c == 0:
-        return -dfun(w) # Steepest Descent
+        return -dfun(w)  # Steepest Descent
     elif c == 1:
-        return Newton(hfun, dfun, w) # Newton
-    else:
-        pass # BFGS
+        return Newton(hfun, dfun, w)  # Newton
+    elif c == 2:
+        return -np.matmul(hfun, dfun(w).reshape(len(w), 1)).reshape(len(hfun),)  # BFGS
 
-def LineSearchMethods(dd: int, hfun, dfun, fun):
+
+def BFGS_update(H: np.array, s: np.array, y: np.array) -> np.array:
+    R = 1 / np.dot(y, s)
+    s = s.reshape(len(s), 1)
+    # reshape vectors in order to multiply array-wise with matmul
+    y = y.reshape(len(y), 1)
+    v1 = np.eye(len(H)) - R * np.matmul(s, y.T)
+    v2 = np.eye(len(H)) - R * np.matmul(y, s.T)
+    v3 = R * np.matmul(s, s.T)
+    H = np.matmul(H, v2)
+    H = np.matmul(v1, H)
+    H = H + v3
+    return H
+
+
+def LineSearchMethods(dd: int, hfun, dfun, fun, w: np.array):
     print("~~~~~ Line Search Methods ~~~~~")
     labels = ["Steepest Descent", "Newton", "BFGS"]
-    print("Descent Direction:",labels[dd],"\n")
+    assert(dd >= 0 and dd < 3)
+    print("Descent Direction:", labels[dd], "\n")
     # initial values for variables
     alpha = 5
     iterations = 0
     q = 1
-    # w = np.random.rand(6)
-    w = np.zeros(6)  # initial state
     while q > 1e-4 and iterations < 1e4:
+        w_previous = w
         p = selectDescentDirection(dd, hfun, dfun, w)
         a = LineSearch(fun, dfun, w, p, alpha)
         w = w + a * p
+        if dd == 2:
+            s = w - w_previous
+            y = dfun(w) - dfun(w_previous)
+            hfun = BFGS_update(hfun, s, y)
+
         q = np.linalg.norm(dfun(w))
         print(q)
         iterations += 1
-    print("\nBest weight vector:\n"+str(w), "\nMean square error:",q,"\nNumber of iterations:",iterations)
+    print(
+        "\nBest weight vector:\n" + str(w),
+        "\nMean square error:",
+        q,
+        "\nNumber of iterations:",
+        iterations,
+    )
     if q <= 1e-4:
         print("Success minimization")
     else:
         print("Not optimal solution")
-        
+
 
 def main(argv: list):
     data = readData()  # data - 180 days total
-    dd = int(argv[2]) # descent direction for line search methods 
+    dd = int(argv[2])  # descent direction for line search methods
     k = 6  # (fixed) number of forecasters
     m = int(argv[1])  # predict best last m days
     N = len(data)
@@ -262,9 +292,18 @@ def main(argv: list):
     # simplify the calls to the objective function
     fun = lambda w: f(w, data, f_predictions, m, N)
     dfun = lambda w: gradf(w, data, f_predictions, m, N)
-    hfun = lambda w: hessianf(w, f_predictions, m , N)
+    hfun = lambda w: hessianf(w, f_predictions, m, N)
 
-    LineSearchMethods(dd, hfun, dfun, fun)
+    w = np.zeros(6)  # initial state
+    if dd == 2:
+        hess = hfun(w)
+        if isPositiveDefinite(hess):
+            hfun = hess # use the array as is - remove lambda function
+        else:
+            hfun = np.eye(len(w)) # if is not p.d. use an approximation of identity matrix
+
+    LineSearchMethods(dd, hfun, dfun, fun, w)
+
 
 if __name__ == "__main__":
     main(sys.argv)

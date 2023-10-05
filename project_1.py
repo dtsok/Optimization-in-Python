@@ -117,6 +117,34 @@ def readData() -> np.array:
         exit()
 
 
+def printEndMessage(w: np.array, q: float, iterations: int, acc: float):
+    print(
+        "\nBest weight vector:\n" + str(w),
+        "\nMean square error:",
+        q,
+        "\nNumber of iterations:",
+        iterations,
+    )
+    if q <= acc:
+        print("Success minimization")
+    else:
+        print("Not optimal solution")
+
+
+def printStartMessage(dd: int, mth: str):
+    if mth == "LS":
+        print("~~~~~ Line Search Methods ~~~~~")
+        labels = ["Steepest Descent", "Newton", "BFGS"]
+        assert dd >= 0 and dd < 3
+        print("Descent Direction:", labels[dd], "\n")
+    elif mth == "TR":
+        print("~~~~~ Trust Region Methods ~~~~~")
+        print("Descent Direction:", "Dogleg", "\n")
+    else:
+        print("Error.")
+        exit()
+
+
 # initialize/fill array with the predictions from the forecasters
 def initializePredictions(data: np.array, f_pred: np.array, k: int, m: int):
     N = len(data)
@@ -228,7 +256,9 @@ def selectDescentDirection(c: int, hfun, dfun, w) -> np.array:
     elif c == 1:
         return Newton(hfun, dfun, w)  # Newton
     elif c == 2:
-        return -np.matmul(hfun, dfun(w).reshape(len(w), 1)).reshape(len(hfun),)  # BFGS
+        return -np.matmul(hfun, dfun(w).reshape(len(w), 1)).reshape(
+            len(hfun),
+        )  # BFGS
 
 
 def BFGS_update(H: np.array, s: np.array, y: np.array) -> np.array:
@@ -246,15 +276,14 @@ def BFGS_update(H: np.array, s: np.array, y: np.array) -> np.array:
 
 
 def LineSearchMethods(dd: int, hfun, dfun, fun, w: np.array):
-    print("~~~~~ Line Search Methods ~~~~~")
-    labels = ["Steepest Descent", "Newton", "BFGS"]
-    assert(dd >= 0 and dd < 3)
-    print("Descent Direction:", labels[dd], "\n")
+    printStartMessage(dd, "LS")
     # initial values for variables
+    acc = 1e-4
+    total = 1e3
     alpha = 5
     iterations = 0
     q = 1
-    while q > 1e-4 and iterations < 1e4:
+    while q > acc and iterations < total:
         w_previous = w
         p = selectDescentDirection(dd, hfun, dfun, w)
         a = LineSearch(fun, dfun, w, p, alpha)
@@ -267,17 +296,91 @@ def LineSearchMethods(dd: int, hfun, dfun, fun, w: np.array):
         q = np.linalg.norm(dfun(w))
         print(q)
         iterations += 1
-    print(
-        "\nBest weight vector:\n" + str(w),
-        "\nMean square error:",
-        q,
-        "\nNumber of iterations:",
-        iterations,
+    printEndMessage(w, q, iterations, acc)
+
+
+# finding root using bisection
+def solve(p_u, p_b, R) -> float:
+    fun = lambda t: np.linalg.norm(p_u + (t - 1) * (p_b - p_u)) ** 2 - R**2
+    a = 1
+    b = 2
+    if fun(a) * fun(b) > 0:
+        print("Method failed.")
+        exit()
+    for i in range(1, 30):
+        m = (a + b) / 2
+        fm = fun(m)
+        if fun(a) * fm < 0:
+            b = m
+        elif fun(b) * fm < 0:
+            a = m
+        elif fm < 1e-4:
+            return m
+        else:
+            print("Method failed.")
+            exit()
+    return (a + b) / 2
+
+
+# finding descent direction for Trust Region methods
+def Dogleg(B: np.array, g: np.array, R: float) -> np.array:
+    p_b = -np.matmul(np.linalg.inv(B), g.reshape(len(g), 1)).reshape(
+        len(B),
     )
-    if q <= 1e-4:
-        print("Success minimization")
+    if np.linalg.norm(p_b) <= R:
+        return p_b
     else:
-        print("Not optimal solution")
+        nominator = -np.dot(g, g)
+        v1 = np.matmul(B, g.reshape(len(g), 1)).reshape(
+            len(g),
+        )
+        denominator = np.dot(v1, g)
+        p_u = (nominator / denominator) * g
+        if np.linalg.norm(p_u) >= R:
+            return -(R / np.linalg.norm(g)) * g
+        else:
+            t = solve(p_u, p_b, R)
+            return p_u + (t - 1) * (p_b - p_u)
+
+
+def TrustRegionMethods(hfun, dfun, fun, w: np.array):
+    printStartMessage(0, "TR")
+    acc = 1e-6
+    total = 1e3
+    m = (
+        lambda w, p: fun(w)
+        + np.dot(dfun(w), p)
+        + 0.5
+        * np.dot(
+            p,
+            np.matmul(hfun, p.reshape(len(p), 1)).reshape(
+                len(w),
+            ),
+        )
+    )
+    R = R_max = 1
+    z = 0.2
+    iterations = 0
+    q = 1
+    while q > acc and iterations < total:
+        w_previous = w
+        p = Dogleg(hfun, dfun(w), R)
+        ratio = (fun(w) - fun(w + p)) / (m(w, np.zeros(6)) - m(w, p))
+        if ratio < 1 / 4:
+            R = R / 4
+        elif ratio > 3 / 4 and np.linalg.norm(p) == R:
+            R = min(2 * R, R_max)
+
+        if ratio > z:
+            w = w + p
+            s = w - w_previous
+            y = dfun(w) - dfun(w_previous)
+            hfun = BFGS_update(hfun, s, y)
+
+        iterations += 1
+        q = np.linalg.norm(dfun(w))
+        print(q)
+    printEndMessage(w, q, iterations, acc)
 
 
 def main(argv: list):
@@ -295,14 +398,18 @@ def main(argv: list):
     hfun = lambda w: hessianf(w, f_predictions, m, N)
 
     w = np.zeros(6)  # initial state
+    w = np.random.rand(6)
     if dd == 2:
         hess = hfun(w)
         if isPositiveDefinite(hess):
-            hfun = hess # use the array as is - remove lambda function
+            hfun = hess  # use the array as is - remove lambda function
         else:
-            hfun = np.eye(len(w)) # if is not p.d. use an approximation of identity matrix
+            hfun = np.eye(
+                len(w)
+            )  # if is not p.d. use an approximation of identity matrix
 
-    LineSearchMethods(dd, hfun, dfun, fun, w)
+    # LineSearchMethods(dd, hfun, dfun, fun, w)
+    TrustRegionMethods(hfun, dfun, fun, w)
 
 
 if __name__ == "__main__":

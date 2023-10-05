@@ -135,8 +135,12 @@ def printStartMessage(dd: int, mth: str):
     if mth == "LS":
         print("~~~~~ Line Search Methods ~~~~~")
         labels = ["Steepest Descent", "Newton", "BFGS"]
-        assert dd >= 0 and dd < 3
-        print("Descent Direction:", labels[dd], "\n")
+        if dd >= 0 and dd < 3:
+            print("Descent Direction:", labels[dd], "\n")
+        else:
+            print(
+                "Invalid input parameter for descent direction.\nDescent directions for line search methods are:\nSteepest Descent: 0\nNewton: 1\nBFGS: 2"
+            )
     elif mth == "TR":
         print("~~~~~ Trust Region Methods ~~~~~")
         print("Descent Direction:", "Dogleg", "\n")
@@ -384,10 +388,16 @@ def TrustRegionMethods(hfun, dfun, fun, w: np.array):
 
 
 def main(argv: list):
+    if len(argv) < 3 or len(argv) > 4:
+        print(
+            "Error.\nUsage: python3 project_1.py <int> <int> <str>\nFirst <int>: in range [1, 179] - last number of days to predict\nSecond <int>: in range [0,2] - descent direction\nString <str>: method - LS for Line Search / TR for Trust Region"
+        )
+        exit()
     data = readData()  # data - 180 days total
     dd = int(argv[2])  # descent direction for line search methods
     k = 6  # (fixed) number of forecasters
     m = int(argv[1])  # predict best last m days
+    method = argv[3]
     N = len(data)
     f_predictions = np.zeros((k, m))  # predictions from forecasters
     initializePredictions(data, f_predictions, k, m)
@@ -397,19 +407,25 @@ def main(argv: list):
     dfun = lambda w: gradf(w, data, f_predictions, m, N)
     hfun = lambda w: hessianf(w, f_predictions, m, N)
 
-    w = np.zeros(6)  # initial state
+    # initial state
+    # w = np.zeros(6)
     w = np.random.rand(6)
-    if dd == 2:
+    if dd == 2 or method == "TR":
         hess = hfun(w)
         if isPositiveDefinite(hess):
             hfun = hess  # use the array as is - remove lambda function
         else:
             hfun = np.eye(
                 len(w)
-            )  # if is not p.d. use an approximation of identity matrix
+            )  # if hessian is not p.d. use an approximation of the identity matrix
 
-    # LineSearchMethods(dd, hfun, dfun, fun, w)
-    TrustRegionMethods(hfun, dfun, fun, w)
+    if method == "LS":
+        LineSearchMethods(dd, hfun, dfun, fun, w)
+    elif method == "TR":
+        TrustRegionMethods(hfun, dfun, fun, w)
+    else:
+        print("Please select a valid method.\nLine Search: LS\nTrust Region: TR")
+        exit()
 
 
 if __name__ == "__main__":

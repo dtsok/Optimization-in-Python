@@ -149,7 +149,7 @@ def printStartMessage(dd: int, mth: str):
         exit()
 
 
-# initialize/fill array with the predictions from the forecasters
+# initialize array with the predictions from the forecasters
 def initializePredictions(data: np.array, f_pred: np.array, k: int, m: int):
     N = len(data)
     # SAS: xi = 1
@@ -236,7 +236,6 @@ def isPositiveDefinite(array: np.array) -> bool:
         np.linalg.cholesky(array)
         return True
     except Exception as err:
-        print("false")
         return False
 
 
@@ -283,11 +282,11 @@ def LineSearchMethods(dd: int, hfun, dfun, fun, w: np.array):
     printStartMessage(dd, "LS")
     # initial values for variables
     acc = 1e-4
-    total = 1e3
+    max_iterations = 1e3
     alpha = 5
     iterations = 0
     q = 1
-    while q > acc and iterations < total:
+    while q > acc and iterations < max_iterations:
         w_previous = w
         p = selectDescentDirection(dd, hfun, dfun, w)
         a = LineSearch(fun, dfun, w, p, alpha)
@@ -309,7 +308,7 @@ def solve(p_u, p_b, R) -> float:
     a = 1
     b = 2
     if fun(a) * fun(b) > 0:
-        print("Method failed.")
+        print("Bisection method failed.")
         exit()
     for i in range(1, 30):
         m = (a + b) / 2
@@ -321,7 +320,7 @@ def solve(p_u, p_b, R) -> float:
         elif fm < 1e-4:
             return m
         else:
-            print("Method failed.")
+            print("Bisection method failed.")
             exit()
     return (a + b) / 2
 
@@ -350,7 +349,7 @@ def Dogleg(B: np.array, g: np.array, R: float) -> np.array:
 def TrustRegionMethods(hfun, dfun, fun, w: np.array):
     printStartMessage(0, "TR")
     acc = 1e-6
-    total = 1e3
+    max_iterations = 1e3
     m = (
         lambda w, p: fun(w)
         + np.dot(dfun(w), p)
@@ -366,7 +365,7 @@ def TrustRegionMethods(hfun, dfun, fun, w: np.array):
     z = 0.2
     iterations = 0
     q = 1
-    while q > acc and iterations < total:
+    while q > acc and iterations < max_iterations:
         w_previous = w
         p = Dogleg(hfun, dfun(w), R)
         ratio = (fun(w) - fun(w + p)) / (m(w, np.zeros(6)) - m(w, p))
@@ -397,12 +396,12 @@ def main(argv: list):
     dd = int(argv[2])  # descent direction for line search methods
     k = 6  # (fixed) number of forecasters
     m = int(argv[1])  # predict best last m days
-    method = argv[3]
+    method = argv[3] # LS or TR
     N = len(data)
     f_predictions = np.zeros((k, m))  # predictions from forecasters
     initializePredictions(data, f_predictions, k, m)
 
-    # simplify the calls to the objective function
+    # simplify the calls to the functions
     fun = lambda w: f(w, data, f_predictions, m, N)
     dfun = lambda w: gradf(w, data, f_predictions, m, N)
     hfun = lambda w: hessianf(w, f_predictions, m, N)

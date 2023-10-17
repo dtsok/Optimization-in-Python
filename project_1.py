@@ -141,6 +141,7 @@ def printStartMessage(dd: int, mth: str):
             print(
                 "Invalid input parameter for descent direction.\nDescent directions for line search methods are:\nSteepest Descent: 0\nNewton: 1\nBFGS: 2"
             )
+            exit()
     elif mth == "TR":
         print("~~~~~ Trust Region Methods ~~~~~")
         print("Descent Direction:", "Dogleg", "\n")

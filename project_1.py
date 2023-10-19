@@ -53,6 +53,28 @@ def LES(data: np.array, a: float, b: float, t: int) -> float:
 """
 
 
+# Predictions based on foreacasters and optimal weight vector w
+def newPrediction(day: int, forecasters_pred: np.array, weights: np.array) -> float:
+    sum = 0
+    for k in range(len(weights)):
+        sum += forecasters_pred[k][day] * weights[k]
+    return sum
+
+
+# Compare new predictions with actual values for the last m days
+def comparePredictions(
+    m: int, values: np.array, f_predictions: np.array, weights: np.array
+):
+    N = len(values)
+    avg = 0
+    for i in range(m):
+        pred = newPrediction(i, f_predictions, weights)
+        realv = values[N - m + i - 1]
+        avg += abs(pred - realv)
+    avg = avg / m
+    print("\nAverage difference |real - predicted| = {:.3f}".format(avg))
+
+
 # Objective function: f
 def f(w: np.array, data: np.array, forecasters_pred: np.array, m: int, N: int) -> float:
     y = 0
@@ -128,7 +150,7 @@ def printEndMessage(w: np.array, q: float, iterations: int, acc: float):
     if q <= acc:
         print("Success minimization")
     else:
-        print("Not optimal solution")
+        print("MSE wasn't minimized completely")
 
 
 def printStartMessage(dd: int, mth: str):
@@ -279,7 +301,7 @@ def BFGS_update(H: np.array, s: np.array, y: np.array) -> np.array:
     return H
 
 
-def LineSearchMethods(dd: int, hfun, dfun, fun, w: np.array):
+def LineSearchMethods(dd: int, hfun, dfun, fun, w: np.array) -> np.array:
     printStartMessage(dd, "LS")
     # initial values for variables
     acc = 1e-4
@@ -301,6 +323,7 @@ def LineSearchMethods(dd: int, hfun, dfun, fun, w: np.array):
         print(q)
         iterations += 1
     printEndMessage(w, q, iterations, acc)
+    return w
 
 
 # finding root using bisection
@@ -347,7 +370,7 @@ def Dogleg(B: np.array, g: np.array, R: float) -> np.array:
             return p_u + (t - 1) * (p_b - p_u)
 
 
-def TrustRegionMethods(hfun, dfun, fun, w: np.array):
+def TrustRegionMethods(hfun, dfun, fun, w: np.array) -> np.array:
     printStartMessage(0, "TR")
     acc = 1e-6
     max_iterations = 1e3
@@ -385,19 +408,20 @@ def TrustRegionMethods(hfun, dfun, fun, w: np.array):
         q = np.linalg.norm(dfun(w))
         print(q)
     printEndMessage(w, q, iterations, acc)
+    return w
 
 
 def main(argv: list):
     if len(argv) < 3 or len(argv) > 4:
         print(
-            "Error.\nUsage: python3 project_1.py <int> <int> <str>\nFirst <int>: in range [1, 179] - last number of days to predict\nSecond <int>: in range [0,2] - descent direction\nString <str>: method - LS for Line Search / TR for Trust Region"
+            "Error.\nUsage: python3 project_1.py <int> <int> <str>\nFirst <int>: in range [1, 179] - number of days to predict\nSecond <int>: in range [0,2] - descent direction\nString <str>: method - LS for Line Search / TR for Trust Region"
         )
         exit()
     data = readData()  # data - 180 days total
     dd = int(argv[2])  # descent direction for line search methods
     k = 6  # (fixed) number of forecasters
     m = int(argv[1])  # predict best last m days
-    method = argv[3] # LS or TR
+    method = argv[3]  # LS or TR
     N = len(data)
     f_predictions = np.zeros((k, m))  # predictions from forecasters
     initializePredictions(data, f_predictions, k, m)
@@ -418,14 +442,15 @@ def main(argv: list):
             hfun = np.eye(
                 len(w)
             )  # if hessian is not p.d. use an approximation of the identity matrix
-
     if method == "LS":
-        LineSearchMethods(dd, hfun, dfun, fun, w)
+        w = LineSearchMethods(dd, hfun, dfun, fun, w)
     elif method == "TR":
-        TrustRegionMethods(hfun, dfun, fun, w)
+        w = TrustRegionMethods(hfun, dfun, fun, w)
     else:
         print("Please select a valid method.\nLine Search: LS\nTrust Region: TR")
         exit()
+
+    comparePredictions(m, data, f_predictions, w)
 
 
 if __name__ == "__main__":

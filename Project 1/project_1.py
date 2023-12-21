@@ -55,10 +55,10 @@ def LES(data: np.array, a: float, b: float, t: int) -> float:
 
 # Predictions based on foreacasters and optimal weight vector w
 def newPrediction(day: int, forecasters_pred: np.array, weights: np.array) -> float:
-    sum = 0
+    sum_ = 0
     for k in range(len(weights)):
-        sum += forecasters_pred[k][day] * weights[k]
-    return sum
+        sum_ += forecasters_pred[k][day] * weights[k]
+    return sum_
 
 
 # Compare new predictions with actual values for the last m days
@@ -135,7 +135,8 @@ def readData() -> np.array:
     try:
         return np.loadtxt("EURUSD.dat", dtype=np.float64)
     except IOError as err:
-        print("Error @ loading data")
+        print("Error @ readData")
+        print(err)
         exit()
 
 
@@ -148,9 +149,9 @@ def printEndMessage(w: np.array, q: float, iterations: int, acc: float):
         iterations,
     )
     if q <= acc:
-        print("Success minimization")
+        print("Successful minimization")
     else:
-        print("MSE wasn't minimized completely")
+        print("MSE wasn't minimized completely.\nDesirable accuracy < {}".format(acc))
 
 
 def printStartMessage(dd: int, mth: str):
@@ -173,7 +174,7 @@ def printStartMessage(dd: int, mth: str):
 
 
 # initialize array with the predictions from the forecasters
-def initializePredictions(data: np.array, f_pred: np.array, k: int, m: int):
+def initializePredictions(data: np.array, f_pred: np.array, m: int):
     N = len(data)
     # SAS: xi = 1
     f1 = lambda t: SAS(data, 1, t)
@@ -258,7 +259,8 @@ def isPositiveDefinite(array: np.array) -> bool:
     try:
         np.linalg.cholesky(array)
         return True
-    except Exception as err:
+    except np.linalg.LinAlgError:
+        # print("Array is not positive definite")
         return False
 
 
@@ -424,7 +426,7 @@ def main(argv: list):
     method = argv[3]  # LS or TR
     N = len(data)
     f_predictions = np.zeros((k, m))  # predictions from forecasters
-    initializePredictions(data, f_predictions, k, m)
+    initializePredictions(data, f_predictions, m)
 
     # simplify the calls to the functions
     fun = lambda w: f(w, data, f_predictions, m, N)

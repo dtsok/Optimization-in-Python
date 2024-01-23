@@ -1,7 +1,6 @@
 # Optimization-in-Python
-Contains two mathematical optimization projects implemented in Python 
+Contains a mathematical optimization project implemented in Python 
 
-## Project 1:
 ### Optimization of the objective function using Gradient-based methods
 In this project we are given a dataset that contains the exchange rate of the Euro against the US Dollar for a period of 180 days and our task is to predict as accurately as possible the exchange rate for the last $\mu$ days. One way to accomplish this is by using methods based on *moving averages forecasting* such as simple moving average (SAS), simple exponential smoothing (SES) and linear exponential smoothing (LES). Since every forecaster has its own pros and cons we will combine them using weights and the final prediction will be a linear combination of those weights with the corresponding prediction from every forecaster. Hence, our goal is to find the optimal weight vector. In order to find this vector we will minimize a specific function, the *objective function*, using gradient based optimization methods.
 
@@ -72,5 +71,3 @@ ex. Predicting the last 15 days using Newton descent direction with Wolfe condit
 
 ---
 
-## Project 2:
-Optimization of the objective function using Derivative-free methods.
